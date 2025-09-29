@@ -5,74 +5,88 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 import string
 
-# Page config & theming
-st.set_page_config(page_title="Emotion & Sentiment Analyzer", layout="wide")
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
+# 1. पेज सेटअप
+st.set_page_config(
+    page_title="Sentiment & Emotion Analyzer by AMAN",
+    page_icon="🎭",
+    layout="wide"
+)
 
-# Light/dark toggle
+# 2. साइडबार सेटिंग्स
 st.sidebar.title("⚙️ Settings")
-st.sidebar.checkbox("🌙 Dark Mode", key="dark_mode")
-if st.session_state.dark_mode:
-    st.markdown(
-        """<style>
-            .main { background-color:#111; color:#EEE; }
-            textarea, .css-1ebnwmn, .stButton>button { background:#333; color:#EEE; }
-        </style>""",
-        unsafe_allow_html=True
-    )
+dark = st.sidebar.checkbox("🌙 Dark Mode", value=False)
 
-# Load emotion pipeline
+# 3. CSS इनजेक्शन
+if dark:
+    st.markdown("""
+    <style>
+        body { background-color: #111; color: #EEE; }
+        textarea, .stButton>button { background-color: #333 !important; color: #EEE !important; }
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <style>
+        body { background-color: #FFF; color: #000; }
+        textarea, .stButton>button { background-color: #EEE !important; color: #000 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 4. मॉडल लोड करें
 @st.cache_resource(show_spinner=False)
 def load_emotion_model():
     try:
-        return pipeline("text-classification", 
-                        model="j-hartmann/emotion-english-distilroberta-base",
-                        return_all_scores=True)
+        return pipeline(
+            "text-classification",
+            model="j-hartmann/emotion-english-distilroberta-base",
+            return_all_scores=True
+        )
     except:
         return None
 
 emotion_model = load_emotion_model()
 
-# Basic fallback lists
+# 5. NLTK सेटअप
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 stop_words = set(stopwords.words('english'))
+
+# 6. बेसिक सेंटिमेंट फॉलबैक
 positive = {"good","happy","love","great","excited","joy"}
 negative = {"sad","hate","angry","terrible","depress","worst"}
 
 def basic_sentiment(text):
-    text = text.lower().translate(str.maketrans("","",string.punctuation))
-    words = [w for w in word_tokenize(text) if w not in stop_words]
-    pos = sum(w in positive for w in words)
-    neg = sum(w in negative for w in words)
-    if pos>neg: return "Positive"
-    if neg>pos: return "Negative"
-    return "Neutral"
+    txt = text.lower().translate(str.maketrans("", "", string.punctuation))
+    tokens = [w for w in word_tokenize(txt) if w not in stop_words]
+    pos = sum(w in positive for w in tokens)
+    neg = sum(w in negative for w in tokens)
+    return "Positive 😊" if pos>neg else ("Negative 😞" if neg>pos else "Neutral 😐")
 
+# 7. एनालिसिस फ़ंक्शन
 def analyze(text):
-    # Try emotion model first
     if emotion_model:
         scores = emotion_model(text)[0]
-        # Get top emotion
         top = max(scores, key=lambda x: x['score'])
         return f"{top['label']} ({top['score']*100:.1f}%)"
-    # Fallback
     return basic_sentiment(text)
 
-# UI layout
-st.markdown("<div class='main'><h1>🧠 Emotion & Sentiment Analyzer</h1></div>", unsafe_allow_html=True)
-left, right = st.columns(2)
+# 8. UI लेआउट
+st.markdown(f"<h1 style='text-align:center;'>🎭 Sentiment & Emotion Analyzer by AMAN</h1>", unsafe_allow_html=True)
+left, right = st.columns(2, gap="large")
+
 with left:
-    txt = st.text_area("📝 Enter your text here", height=200)
-    if st.button("Analyze"):
-        result = analyze(txt)
-        st.session_state.result = result
+    st.subheader("📝 Enter your text:")
+    user_text = st.text_area("", height=250, placeholder="Type your message here...")
+    if st.button("🔍 Analyze Sentiment"):
+        st.session_state.result = analyze(user_text)
 
 with right:
-    st.markdown("### 📊 Result")
+    st.subheader("📊 Results:")
     if "result" in st.session_state:
-        st.markdown(f"**{st.session_state.result}**")
+        st.markdown(f"## {st.session_state.result}")
     else:
-        st.info("Enter text and click Analyze")
+        st.info("Enter text and click Analyze to view results.")
 
+# 9. Footer
+st.markdown("---")
+st.markdown("<div style='text-align:center;color:gray;'>Made with ❤️ by AMAN</div>", unsafe_allow_html=True)
