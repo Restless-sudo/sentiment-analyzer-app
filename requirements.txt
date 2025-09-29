@@ -4,3 +4,4 @@ torch
 nltk
 fer
 opencv-python-headless
+moviepy
