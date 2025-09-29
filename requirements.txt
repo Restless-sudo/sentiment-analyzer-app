@@ -2,5 +2,5 @@ streamlit
 transformers
 torch
 nltk
-deepface
+fer
 opencv-python-headless
