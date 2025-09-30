@@ -3,5 +3,4 @@ transformers
 torch
 nltk
 opencv-python-headless
-mediapipe
 Pillow
