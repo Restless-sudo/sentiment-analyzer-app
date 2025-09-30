@@ -1,6 +1,6 @@
 streamlit
 transformers
 torch
-nltk
 opencv-python-headless
+streamlit-elements
 Pillow
