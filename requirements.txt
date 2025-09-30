@@ -1,8 +1,7 @@
 streamlit
 transformers
 torch
-torchvision
-facenet-pytorch
 nltk
 opencv-python-headless
+mediapipe
 Pillow
