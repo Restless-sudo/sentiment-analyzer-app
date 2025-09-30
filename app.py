@@ -1,115 +1,64 @@
 import streamlit as st
-import cv2
-import numpy as np
-from PIL import Image
+from streamlit_elements import elements, mui, html
 from transformers import pipeline
-import io
+import cv2, numpy as np
+from PIL import Image
 
-# Page config
-st.set_page_config(page_title="Sentiment Analyzer by AMAN", page_icon="🎭", layout="wide")
+st.set_page_config(layout="wide", page_title="Pro Sentiment Analyzer")
+st.markdown("""
+<style>
+body { font-family:'Segoe UI', sans-serif; }
+.card { padding:16px; border-radius:8px; background:#ffffffaa; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+</style>
+""", unsafe_allow_html=True)
 
-# Sidebar
-st.sidebar.title("Settings ⚙️")
-dark = st.sidebar.checkbox("Enable Dark Mode")
-if dark:
-    st.markdown("""
-        <style>
-        .stApp { background:#121212; color:#EEE; }
-        .stTextArea>div>div>textarea, .stButton>button { background:#333; color:#EEE; }
-        </style>
-    """, unsafe_allow_html=True)
-
-# Load text emotion model
+# Load model
 @st.cache_resource
-def load_nlp():
-    return pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", return_all_scores=True)
+def load_nlp(): return pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", return_all_scores=True)
+nlp = load_nlp()
 
-nlp_model = load_nlp()
+# Layout with streamlit-elements
+with elements("demo"):
+    mui.Box(style={"margin":"20px"})[
+        mui.Typography("🎭 Pro Sentiment Analyzer by AMAN", variant="h3", gutterBottom=True)
+    ]
+    mui.Grid(container=True, spacing=4)[
+        mui.Grid(item=True, xs=6)[
+            mui.Card(className="card")[
+                mui.Typography("📝 Text Analysis", variant="h5"),
+                mui.TextField(id="input-text", label="Type mood...", fullWidth=True),
+                mui.Button("Analyze", variant="contained", color="primary", id="btn-text"),
+                html.DIV(id="output-text")
+            ]
+        ],
+        mui.Grid(item=True, xs=6)[
+            mui.Card(className="card")[
+                mui.Typography("📷 Photo Emotion", variant="h5"),
+                html.INPUT(type="file", accept="image/*", id="file-photo"),
+                html.DIV(id="output-photo")
+            ]
+        ]
+    ]
 
-def analyze_text(txt):
-    if nlp_model:
-        scores = nlp_model(txt)[0]
-        top = max(scores, key=lambda x: x["score"])
-        return f"{top['label']} ({top['score']*100:.1f}%)"
-    return "Neutral 😐"
+# Callbacks
+def analyze_text(text):
+    scores = nlp(text)[0]
+    top = max(scores, key=lambda x: x["score"])
+    return top["label"], top["score"]
 
-def detect_face_and_predict_emotion(img_bytes):
-    # Load image
+def render_output_text(label, score):
+    bar = st.progress(score)
+    st.markdown(f"**Emotion:** {label}  \n**Confidence:** {score*100:.1f}%")
+
+def render_output_photo(img_bytes):
     img = Image.open(io.BytesIO(img_bytes))
-    img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-    
-    # Better face detection parameters
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(
-        gray, 
-        scaleFactor=1.05,      # More sensitive
-        minNeighbors=6,        # More strict (reduces false positives)
-        minSize=(50, 50),      # Minimum face size
-        maxSize=(300, 300)     # Maximum face size
-    )
-    
-    if len(faces) > 0:
-        for (x, y, w, h) in faces:
-            # Draw rectangle
-            cv2.rectangle(img_cv, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            
-            # Smart emotion prediction based on image analysis
-            face_region = gray[y:y+h, x:x+w]
-            
-            # Calculate brightness and contrast for emotion
-            brightness = np.mean(face_region)
-            contrast = np.std(face_region)
-            
-            # Emotion logic based on facial features
-            if brightness > 120 and contrast > 40:
-                emotion = "Happy 😊"
-                confidence = 85
-            elif brightness > 100:
-                emotion = "Pleasant 🙂"
-                confidence = 75
-            elif contrast < 30:
-                emotion = "Calm 😌"
-                confidence = 70
-            else:
-                emotion = "Neutral 😐"
-                confidence = 65
-            
-            # For clear photos with good lighting (like yours), prefer Happy
-            if w > 80 and h > 80:  # Good size face
-                emotion = "Happy 😊"
-                confidence = 90
-        
-        result_img = Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
-        return result_img, f"{emotion} (Confidence: {confidence}%)"
-    
-    return img, "No clear face detected"
+    st.image(img, use_column_width=True)
 
-# UI Layout
-st.markdown("<h1 style='text-align:center;'>🎭 Sentiment Analyzer by AMAN</h1>", unsafe_allow_html=True)
-col1, col2 = st.columns(2, gap="large")
+# Wire up events
+if st.session_state.get("btn-text_clicked"):
+    lbl, sc = analyze_text(st.session_state["input-text"])
+    render_output_text(lbl, sc)
 
-with col1:
-    st.subheader("📝 Enter text for analysis:")
-    user_text = st.text_area("", height=200, placeholder="Type your message here...")
-    if st.button("Analyze Sentiment"):
-        st.session_state.text_result = analyze_text(user_text)
-    
-    st.markdown("**📷 Or upload a photo for emotion detection:**")
-    photo_file = st.file_uploader("", type=["jpg", "jpeg", "png"])
-    if photo_file:
-        img, emotion = detect_face_and_predict_emotion(photo_file.read())
-        st.session_state.detected_photo = img
-        st.session_state.photo_emotion = emotion
-
-with col2:
-    st.subheader("📊 Results:")
-    if "text_result" in st.session_state:
-        st.markdown(f"**Text:** {st.session_state.text_result}")
-    if "detected_photo" in st.session_state:
-        st.image(st.session_state.detected_photo, caption=st.session_state.photo_emotion)
-    if "text_result" not in st.session_state and "detected_photo" not in st.session_state:
-        st.info("Enter text or upload photo to see results.")
-
-st.markdown("---")
-st.markdown("<div style='text-align:center;color:gray;'>Made with ❤️ by AMAN</div>", unsafe_allow_html=True)
+uploaded = st.file_uploader("", type=["jpg","png"])
+if uploaded:
+    render_output_photo(uploaded.read())
