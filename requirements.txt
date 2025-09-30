@@ -5,3 +5,4 @@ nltk
 fer
 opencv-python-headless
 moviepy
+imageio
